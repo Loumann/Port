@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 using System.IO.Ports;
+using System.Runtime.Serialization;
+using System.Security.Cryptography.X509Certificates;
 
 namespace COMDataExchanger
 {
@@ -30,8 +33,9 @@ namespace COMDataExchanger
                 Console.WriteLine("The text format is not correct.");
                 return;
             }
-            _serialPort.ReadTimeout = 300;
-            _serialPort.WriteTimeout = 300;
+            _serialPort.ReadTimeout = -1;
+            _serialPort.WriteTimeout = 2000;
+            _serialPort.BaudRate = 19200;
 
             _serialPort.DataReceived += new SerialDataReceivedEventHandler(_serialPort_DataRecieved);
 
@@ -81,11 +85,19 @@ namespace COMDataExchanger
             }
         }
 
+
+        // Доделать еще надо будет регулярные выражения.
+
         private static void _serialPort_DataRecieved(object sender, SerialDataReceivedEventArgs e)
         {
             var recievedData = _serialPort.ReadExisting();
-
             Console.WriteLine(recievedData);
+            Regex regex = new Regex(@"BLD(\w*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            MatchCollection match = regex.Matches(recievedData);
+            if (match.Count > 0)
+            {
+
+            }
         }
     }
 }
