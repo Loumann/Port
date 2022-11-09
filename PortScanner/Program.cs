@@ -1,18 +1,29 @@
-﻿using System;
-using System.Text.RegularExpressions;
+﻿using PortScanner;
+using System;
+using System.IO;
 using System.IO.Ports;
-using System.Runtime.Serialization;
-using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+
 
 namespace COMDataExchanger
 {
     class Program
     {
+
+        public static StringBuilder sb = new StringBuilder();
+
         static SerialPort _serialPort = null;
         static bool session;
 
+
+
+
         static void Main(string[] args)
         {
+
             AllPorts();
 
             try
@@ -86,17 +97,33 @@ namespace COMDataExchanger
         }
 
 
-        // Доделать еще надо будет регулярные выражения.
 
+
+
+
+
+
+
+        //регулярное выражение и вывод с записью в json объект
         private static void _serialPort_DataRecieved(object sender, SerialDataReceivedEventArgs e)
         {
             var recievedData = _serialPort.ReadExisting();
             Console.WriteLine(recievedData);
-            Regex regex = new Regex(@"BLD(\w*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            MatchCollection match = regex.Matches(recievedData);
-            if (match.Count > 0)
-            {
+            string json = JsonSerializer.Serialize(recievedData);
+            Console.WriteLine(json.Length);
 
+            Regex regex = new Regex(@"^\* \w\w\w", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            MatchCollection matches = regex.Matches(recievedData);
+            if (matches.Count > 0)
+            {
+                foreach (Match match in matches)
+                    Console.WriteLine(match.Value);
+                Console.WriteLine("Найдено");
+
+            }
+            else
+            {
+                Console.WriteLine("Нету");
             }
         }
     }
