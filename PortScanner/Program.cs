@@ -1,129 +1,87 @@
-﻿using PortScanner;
+﻿using Newtonsoft.Json;
 using System;
-using System.IO;
+using System.Collections.Generic;
 using System.IO.Ports;
-using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
-
-
+using System.Reflection;
+using System.Threading;
+using WebSocketSharp;
+using PortScanner;
 
 namespace COMDataExchanger
 {
     class Program
     {
-
-        public static StringBuilder sb = new StringBuilder();
-
         static SerialPort _serialPort = null;
+        static WebSocket ws = null;
         static bool session;
-
-
-
 
         static void Main(string[] args)
         {
+            string data = "Accustrip URS 10\nSeq.No: 0003\nPat.ID:\n2021-12-13 19:56\n* * * * * * * * * * * \n BLD 50 Ery/?l\nUBG NORM\nBIL NEG\nPRO NEG\nNIT NEG\nKET NEG\nGLU NORM\npH 5\nSG 1.025\n* LEU 25 Leu/?l\n";
+            var recievedData = data;
 
-            AllPorts();
+            Analysis analysis = new Analysis();
 
-            try
+            PropertyInfo[] properties = typeof(Analysis).GetProperties();
+            foreach (PropertyInfo property in properties)
             {
-                _serialPort = new SerialPort
+                int startIndex = recievedData.IndexOf(property.Name);
+                if (startIndex < 0 || startIndex >= recievedData.Length)
+                    continue;
+
+                int endIndex = recievedData.IndexOf("\r\n", startIndex);
+                if (endIndex < 0 || endIndex >= recievedData.Length)
+                    continue;
+
+                string row = recievedData.Substring(startIndex, endIndex - startIndex);
+
+                List<string> values = new List<string>();
+
+                string[] strings = row.Split(new char[] { ' ', '\t' });
+                foreach (string s in strings)
                 {
-                    PortName = Console.ReadLine() ?? throw new InvalidOperationException()
-                };
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+                    if (s.Length > 0)
+                        values.Add(s);
+                }
 
-
-            if (_serialPort == null)
-            {
-                Console.WriteLine("The text format is not correct.");
-                return;
-            }
-            _serialPort.ReadTimeout = -1;
-            _serialPort.WriteTimeout = 2000;
-            _serialPort.BaudRate = 19200;
-
-            _serialPort.DataReceived += new SerialDataReceivedEventHandler(_serialPort_DataRecieved);
-
-            try
-            {
-                _serialPort.Open();
-                session = true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-
-            Write();
-
-            //try
-            //{
-            //    _serialPort.Close();
-            //    session = false;
-            //}
-            //catch (Exception ex)
-            //{
-            //    Console.WriteLine(ex.Message);
-            //}
-
-
-            Console.ReadKey();
-        }
-
-        private static void AllPorts()
-        {
-            var ports = SerialPort.GetPortNames();
-
-            for (int i = 0; i < ports.Length; i++)
-            {
-                Console.WriteLine("[" + i.ToString() + "] " + ports[i].ToString());
-            }
-        }
-
-        private static void Write()
-        {
-            while (session == true)
-            {
-                var message = Console.ReadLine();
-
-                _serialPort.WriteLine($"<{_serialPort.PortName}>: {message}");
-            }
-        }
-
-
-
-
-
-
-
-
-
-        //регулярное выражение и вывод с записью в json объект
-        private static void _serialPort_DataRecieved(object sender, SerialDataReceivedEventArgs e)
-        {
-            var recievedData = _serialPort.ReadExisting();
-            Console.WriteLine(recievedData);
-            string json = JsonSerializer.Serialize(recievedData);
-            Console.WriteLine(json.Length);
-
-            Regex regex = new Regex(@"^\* \w\w\w", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            MatchCollection matches = regex.Matches(recievedData);
-            if (matches.Count > 0)
-            {
-                foreach (Match match in matches)
-                    Console.WriteLine(match.Value);
-                Console.WriteLine("Найдено");
+                switch (values.Count)
+                {
+                    case 2:
+                        property.SetValue(analysis, values[1]);
+                        break;
+                    case 3:
+                        property.SetValue(analysis, values[1] + " " + values[2]);
+                        break;
+                    default:
+                        break;
+                }
 
             }
-            else
+
+            string jsonString = JsonConvert.SerializeObject(analysis);
+            Console.WriteLine(jsonString);
+
+            Thread.Sleep(500);
+            ws = new WebSocket("ws://localhost:8080/");
+            ws.OnOpen += (sender, e) => {
+                Console.WriteLine("Сокет открыт");
+            };
+            ws.OnMessage += (sender, e) => {
+                Console.WriteLine("WebSocket получил сообщение: " + e.Data);
+            };
+            ws.OnError += (sender, e) => {
+                Console.WriteLine("Ошибка WebSocket: " + e.Message);
+            };
+            ws.OnClose += (sender, e) => {
+                Console.WriteLine("WebSocket закрыт: " + e.Reason);
+            };
+            ws.Connect();
+
+           
+            if (ws.IsAlive)
             {
-                Console.WriteLine("Нету");
+                ws.Send(jsonString);
+                Console.WriteLine("Отправленное сообщение от сервера-получаетелся: " + jsonString);
             }
         }
     }
