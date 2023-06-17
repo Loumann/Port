@@ -11,9 +11,10 @@ namespace COMDataExchanger
             try
             {
                 var urs = new URS();
-                urs.ConnectToServer();
                 urs.ConnectToDevice();
+
                 Console.WriteLine("Драйвер успешно запущен! \nОжидание данных...");
+
             }
             catch (Exception e)
             {
